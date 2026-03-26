@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <title>Tactical Card Battle</title>
+    <style>
+        body { font-family: sans-serif; background: #222; color: #fff; }
+        #game-container { display: flex; justify-content: space-around; padding: 20px; }
+        .side { width: 45%; border: 2px solid #555; padding: 10px; border-radius: 8px; }
+        .card { background: #444; margin: 5px; padding: 8px; border-radius: 4px; font-size: 0.9em; }
+        .special { border-left: 5px solid #f1c40f; }
+        .status { margin-bottom: 20px; background: #333; padding: 10px; }
+        button { cursor: pointer; padding: 5px 10px; }
+        #log { height: 150px; overflow-y: scroll; background: #000; padding: 10px; margin-top: 20px; font-family: monospace; }
+    </style>
+</head>
+<body>
+
+<div class="status">
+    <h2>タクティカル・バトル</h2>
+    <div id="turn-info">ターン: 1 | 残りコスト: <span id="player-cost">--</span></div>
+    <div>勝利条件: 兵士15人撃破 または 特殊兵科3人撃破</div>
+    <div id="kill-counts">
+        プレイヤーのキル数: 兵士 <span id="p-kill-s">0</span>/15, 特殊 <span id="p-kill-sp">0</span>/3
+    </div>
+</div>
+
+<div id="game-container">
+    <div class="side" id="player-side">
+        <h3>プレイヤー (あなた)</h3>
+        <div id="player-cards"></div>
+    </div>
+    <div class="side" id="enemy-side">
+        <h3>ボット (敵)</h3>
+        <div id="enemy-cards"></div>
+    </div>
+</div>
+
+<div id="log">--- 戦闘ログ ---</div>
+
+<script>
+// --- データ定義 ---
+const SOLDIER_TYPES = [
+    { name: "アサルト兵", weapon: "M7", dmg: 10, cost: 2, range: 3, hp: 30, def: 5 },
+    { name: "スナイパー", weapon: "SR", dmg: 25, cost: 4, range: 10, hp: 20, def: 2 },
+    { name: "ショットガン兵", weapon: "SG", dmg: 35, cost: 3, range: 1, hp: 40, def: 8 },
+    { name: "重装甲盾兵", weapon: "近接", dmg: 5, cost: 5, range: 1, hp: 80, def: 20, isSpecial: true },
+    { name: "特殊部隊", weapon: "多目的", dmg: 20, cost: 4, range: 5, hp: 50, def: 10, isSpecial: true }
+    // ここに50枚・20枚分のバリエーションを追加可能
+];
+
+let gameState = {
+    player: { cards: [], cost: 10, killsS: 0, killsSp: 0 },
+    enemy: { cards: [], cost: 10, killsS: 0, killsSp: 0 },
+    turn: 1,
+    actionCount: 0
+};
+
+// --- 初期化 ---
+function initGame() {
+    // ランダムに配布（簡易版）
+    gameState.player.cards = shuffle(SOLDIER_TYPES).slice(0, 25); // 兵士20+特殊5
+    gameState.enemy.cards = shuffle(SOLDIER_TYPES).slice(0, 25);
+    renderCards();
+    updateUI();
+    addLog("ゲーム開始！あなたのターンです。");
+}
+
+function shuffle(array) {
+    return array.sort(() => Math.random() - 0.5);
+}
+
+// --- 描画 ---
+function renderCards() {
+    const pContainer = document.getElementById('player-cards');
+    pContainer.innerHTML = '';
+    gameState.player.cards.forEach((card, index) => {
+        if (card.hp <= 0) return;
+        const div = document.createElement('div');
+        div.className = `card ${card.isSpecial ? 'special' : ''}`;
+        div.innerHTML = `
+            <strong>${card.name}</strong> (HP: ${card.hp})<br>
+            ATK: ${card.dmg} | Cost: ${card.cost}<br>
+            <button onclick="attack(${index})">攻撃</button>
+        `;
+        pContainer.appendChild(div);
+    });
+
+    const eContainer = document.getElementById('enemy-cards');
+    eContainer.innerHTML = '';
+    gameState.enemy.cards.forEach((card) => {
+        if (card.hp <= 0) return;
+        const div = document.createElement('div');
+        div.className = `card ${card.isSpecial ? 'special' : ''}`;
+        div.innerHTML = `<strong>${card.name}</strong> (HP: ${card.hp})<br>DEF: ${card.def}`;
+        eContainer.appendChild(div);
+    });
+}
+
+// --- 戦闘ロジック ---
+function attack(cardIndex) {
+    const attacker = gameState.player.cards[cardIndex];
+    if (gameState.player.cost < attacker.cost) {
+        addLog("コストが足りません！");
+        return;
+    }
+
+    // ターゲットをランダムに選定
+    const targets = gameState.enemy.cards.filter(c => c.hp > 0);
+    if (targets.length === 0) return;
+    const target = targets[Math.floor(Math.random() * targets.length)];
+
+    // ダメージ計算
+    const damage = Math.max(0, attacker.dmg - target.def);
+    target.hp -= damage;
+    gameState.player.cost -= attacker.cost;
+    gameState.actionCount++;
+
+    addLog(`プレイヤーの ${attacker.name} が ${target.name} に ${damage} ダメージ！`);
+
+    if (target.hp <= 0) {
+        if (target.isSpecial) gameState.player.killsSp++;
+        else gameState.player.killsS++;
+        addLog(`敵の ${target.name} を撃破！`);
+    }
+
+    checkWin();
+    updateUI();
+    renderCards();
+
+    if (gameState.actionCount >= 2) {
+        enemyTurn();
+    }
+}
+
+function enemyTurn() {
+    addLog("--- 敵のターン ---");
+    // 簡易的なボット行動（コストがある限りランダムに攻撃）
+    setTimeout(() => {
+        gameState.actionCount = 0;
+        // ボットの思考ロジックをここに
+        addLog("敵が攻撃してきました！");
+        endTurn();
+    }, 1000);
+}
+
+function endTurn() {
+    gameState.turn++;
+    gameState.actionCount = 0;
+    // 2ターンごとにコスト回復
+    if (gameState.turn % 2 === 0) {
+        gameState.player.cost = 10;
+        gameState.enemy.cost = 10;
+        addLog("コストが全回復しました。");
+    }
+    updateUI();
+    renderCards();
+}
+
+function updateUI() {
+    document.getElementById('player-cost').innerText = gameState.player.cost;
+    document.getElementById('p-kill-s').innerText = gameState.player.killsS;
+    document.getElementById('p-kill-sp').innerText = gameState.player.killsSp;
+}
+
+function addLog(msg) {
+    const log = document.getElementById('log');
+    log.innerHTML += `<div>${msg}</div>`;
+    log.scrollTop = log.scrollHeight;
+}
+
+function checkWin() {
+    if (gameState.player.killsS >= 15 || gameState.player.killsSp >= 3) {
+        alert("勝利！");
+        location.reload();
+    }
+}
+
+initGame();
+</script>
+</body>
+</html>
