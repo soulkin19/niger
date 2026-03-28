@@ -19,23 +19,25 @@
     }
     #board {
         display: grid;
-        grid-template-columns: repeat(9, 55px);
-        grid-template-rows: repeat(9, 55px);
-        border: 8px solid #5c4033;
+        grid-template-columns: repeat(9, 60px);
+        grid-template-rows: repeat(9, 60px);
+        border: 10px solid #5c4033;
         box-shadow: 0 10px 30px rgba(0,0,0,0.8);
         background: #5c4033;
         margin: 20px auto;
     }
     .square {
-        width: 55px;
-        height: 55px;
+        width: 60px;
+        height: 60px;
         display: flex;
         align-items: center;
         justify-content: center;
-        font-size: 38px;
+        font-size: 42px;
+        line-height: 1;
         cursor: pointer;
         user-select: none;
         position: relative;
+        border: 1px solid rgba(0,0,0,0.1);
     }
     .light { background: #f0d9b5; }
     .dark  { background: #b58863; }
@@ -47,16 +49,16 @@
     .possible::after {
         content: '';
         position: absolute;
-        width: 16px;
-        height: 16px;
+        width: 18px;
+        height: 18px;
         background: rgba(0, 255, 0, 0.4);
         border-radius: 50%;
     }
     .capture::after {
         content: '';
         position: absolute;
-        width: 45px;
-        height: 45px;
+        width: 48px;
+        height: 48px;
         border: 4px solid rgba(255, 0, 0, 0.6);
         border-radius: 50%;
     }
@@ -83,16 +85,16 @@
 </div>
 
 <script>
-// 将棋駒のUnicode（区別しやすく太字風や明確な記号を使用）
+// 将棋駒のUnicode（文字が駒から出ないよう調整・見やすく）
 const pieces = {
-    // 先手（黒）
-    'K': '☗玉', 'R': '☗飛', 'B': '☗角', 'G': '☗金', 'S': '☗銀', 'N': '☗桂', 'L': '☗香', 'P': '☗歩',
-    // 後手（白）
-    'k': '☖玉', 'r': '☖飛', 'b': '☖角', 'g': '☖金', 's': '☖銀', 'n': '☖桂', 'l': '☖香', 'p': '☖歩'
+    // 先手（黒・下側から上へ進む）
+    'K': '玉', 'R': '飛', 'B': '角', 'G': '金', 'S': '銀', 'N': '桂', 'L': '香', 'P': '歩',
+    // 後手（白・上側から下へ進む）
+    'k': '玉', 'r': '飛', 'b': '角', 'g': '金', 's': '銀', 'n': '桂', 'l': '香', 'p': '歩'
 };
 
 let board = [
-    ['l','n','s','g','k','g','s','n','l'],
+    ['l','n','s','g','k','g','s','n','l'],  // 後手側（上）
     ['.','r','.','.','.','.','.','b','.'],
     ['p','p','p','p','p','p','p','p','p'],
     ['.','.','.','.','.','.','.','.','.'],
@@ -100,10 +102,10 @@ let board = [
     ['.','.','.','.','.','.','.','.','.'],
     ['P','P','P','P','P','P','P','P','P'],
     ['.','B','.','.','.','.','.','R','.'],
-    ['L','N','S','G','K','G','S','N','L']
+    ['L','N','S','G','K','G','S','N','L']   // 先手側（下）
 ];
 
-let currentPlayer = 'black'; // 先手黒から開始
+let currentPlayer = 'black'; // 先手黒（下側）
 let selectedPiece = null;
 let possibleMoves = [];
 
@@ -122,7 +124,7 @@ function renderBoard() {
 
             const piece = board[row][col];
             if (piece !== '.') {
-                square.innerHTML = pieces[piece] || piece;
+                square.innerHTML = `<span style="font-weight:bold; display:block;">${pieces[piece] || piece}</span>`;
             }
 
             square.addEventListener('click', handleClick);
@@ -136,10 +138,8 @@ function handleClick(e) {
     const col = parseInt(e.target.dataset.col);
     const piece = board[row][col];
 
-    // 後手（AI）のターン中はクリック無効
-    if (currentPlayer === 'white') return;
+    if (currentPlayer === 'white') return; // AIターン中は無効
 
-    // すでに選択中なら移動を試みる
     if (selectedPiece) {
         const isValidMove = possibleMoves.some(m => m.row === row && m.col === col);
         
@@ -154,7 +154,7 @@ function handleClick(e) {
         return;
     }
 
-    // 先手（黒）の駒を選択
+    // 先手（黒）の駒のみ選択可能
     if (piece !== '.' && piece === piece.toUpperCase()) {
         selectedPiece = { row, col };
         highlightSquare(row, col, true);
@@ -212,21 +212,23 @@ function movePiece(fromRow, fromCol, toRow, toCol) {
 function getLegalMoves(row, col) {
     const piece = board[row][col];
     const moves = [];
-    const isBlack = piece === piece.toUpperCase(); // 先手黒
+    const isBlack = piece === piece.toUpperCase();
 
-    // 簡易的な合法手生成（将棋の基本移動）
     const type = piece.toUpperCase();
 
     if (type === 'P') { // 歩
         const dir = isBlack ? 1 : -1;
-        if (board[row + dir] && board[row + dir][col] === '.') {
-            moves.push({row: row + dir, col});
+        const newRow = row + dir;
+        if (newRow >= 0 && newRow < 9 && board[newRow][col] === '.') {
+            moves.push({row: newRow, col});
         }
-    } else if (type === 'L') { // 香車
+    } 
+    else if (type === 'L') { // 香車
         const dir = isBlack ? 1 : -1;
         for (let r = row + dir; r >= 0 && r < 9; r += dir) {
-            if (board[r][col] === '.') moves.push({row: r, col});
-            else {
+            if (board[r][col] === '.') {
+                moves.push({row: r, col});
+            } else {
                 if ((isBlack && board[r][col] === board[r][col].toLowerCase()) ||
                     (!isBlack && board[r][col] === board[r][col].toUpperCase())) {
                     moves.push({row: r, col});
@@ -234,8 +236,26 @@ function getLegalMoves(row, col) {
                 break;
             }
         }
-    } else if (type === 'N') { // 桂馬
-        const dirs = isBlack ? [[1, -1], [1, 1]] : [[-1, -1], [-1, 1]];
+    } 
+    else if (type === 'N') { // 桂馬
+        const dirs = isBlack ? [[2, -1], [2, 1]] : [[-2, -1], [-2, 1]];  // 正しい方向に修正
+        dirs.forEach(([dr, dc]) => {
+            const r = row + dr;
+            const c = col + dc;
+            if (r >= 0 && r < 9 && c >= 0 && c < 9) {
+                const target = board[r][c];
+                if (target === '.' || 
+                    (isBlack && target === target.toLowerCase()) ||
+                    (!isBlack && target === target.toUpperCase())) {
+                    moves.push({row: r, col: c});
+                }
+            }
+        });
+    } 
+    else if (type === 'S') { // 銀将
+        let dirs = isBlack 
+            ? [[-1,-1],[-1,1],[0,-1],[0,1],[1,0]]   // 黒（下から上）
+            : [[1,-1],[1,1],[0,-1],[0,1],[-1,0]];   // 白（上から下）
         dirs.forEach(([dr, dc]) => {
             const r = row + dr, c = col + dc;
             if (r >= 0 && r < 9 && c >= 0 && c < 9) {
@@ -247,8 +267,11 @@ function getLegalMoves(row, col) {
                 }
             }
         });
-    } else if (type === 'S') { // 銀将
-        const dirs = [[-1,-1],[-1,0],[-1,1],[1,-1],[1,1],[0,-1],[0,1]];
+    } 
+    else if (type === 'G') { // 金将
+        let dirs = isBlack 
+            ? [[-1,-1],[-1,0],[-1,1],[0,-1],[0,1],[1,0]] 
+            : [[1,-1],[1,0],[1,1],[0,-1],[0,1],[-1,0]];
         dirs.forEach(([dr, dc]) => {
             const r = row + dr, c = col + dc;
             if (r >= 0 && r < 9 && c >= 0 && c < 9) {
@@ -260,24 +283,12 @@ function getLegalMoves(row, col) {
                 }
             }
         });
-    } else if (type === 'G') { // 金将
-        const dirs = [[-1,-1],[-1,0],[-1,1],[0,-1],[0,1],[1,0]];
-        dirs.forEach(([dr, dc]) => {
-            const r = row + dr, c = col + dc;
-            if (r >= 0 && r < 9 && c >= 0 && c < 9) {
-                const target = board[r][c];
-                if (target === '.' || 
-                    (isBlack && target === target.toLowerCase()) ||
-                    (!isBlack && target === target.toUpperCase())) {
-                    moves.push({row: r, col: c});
-                }
-            }
-        });
-    } else if (type === 'B' || type === 'R' || type === 'K') {
+    } 
+    else if (type === 'B' || type === 'R' || type === 'K') {  // 角・飛・王
         let dirs = [];
-        if (type === 'B') dirs = [[-1,-1],[-1,1],[1,-1],[1,1]]; // 角
-        else if (type === 'R') dirs = [[-1,0],[1,0],[0,-1],[0,1]]; // 飛
-        else dirs = [[-1,-1],[-1,0],[-1,1],[0,-1],[0,1],[1,-1],[1,0],[1,1]]; // 王
+        if (type === 'B') dirs = [[-1,-1],[-1,1],[1,-1],[1,1]];
+        else if (type === 'R') dirs = [[-1,0],[1,0],[0,-1],[0,1]];
+        else dirs = [[-1,-1],[-1,0],[-1,1],[0,-1],[0,1],[1,-1],[1,0],[1,1]];
 
         for (let [dr, dc] of dirs) {
             let r = row + dr, c = col + dc;
@@ -291,7 +302,7 @@ function getLegalMoves(row, col) {
                     }
                     break;
                 }
-                if (type === 'K') break; // 王は1マス
+                if (type === 'K') break;
                 r += dr; c += dc;
             }
         }
@@ -300,14 +311,14 @@ function getLegalMoves(row, col) {
     return moves;
 }
 
-// 簡易AI（後手白）：ランダムに合法手を選択
+// 簡易AI（後手白）：ランダム合法手
 function aiMove() {
     let allMoves = [];
 
     for (let row = 0; row < 9; row++) {
         for (let col = 0; col < 9; col++) {
             const piece = board[row][col];
-            if (piece !== '.' && piece === piece.toLowerCase()) { // 後手白
+            if (piece !== '.' && piece === piece.toLowerCase()) {
                 const moves = getLegalMoves(row, col);
                 moves.forEach(m => {
                     allMoves.push({fromRow: row, fromCol: col, toRow: m.row, toCol: m.col});
