@@ -132,23 +132,27 @@ function handleClick(e) {
     const col = parseInt(e.target.dataset.col);
     const piece = board[row][col];
 
+    // 黒のターン（AI）のときは何もしない
+    if (currentPlayer === 'black') return;
+
     // すでに選択中なら移動を試みる
     if (selectedPiece) {
         const isValidMove = possibleMoves.some(m => m.row === row && m.col === col);
         
         if (isValidMove) {
             movePiece(selectedPiece.row, selectedPiece.col, row, col);
+            // AI（黒）のターンになったら少し待ってAIが動く
+            if (currentPlayer === 'black') {
+                setTimeout(aiMove, 300);
+            }
         }
         
         clearHighlights();
         return;
     }
 
-    // 自分の駒を選択
-    if (piece !== '.' && 
-        ((currentPlayer === 'white' && piece === piece.toUpperCase()) ||
-         (currentPlayer === 'black' && piece === piece.toLowerCase()))) {
-        
+    // 自分の駒を選択（白のみ）
+    if (piece !== '.' && piece === piece.toUpperCase()) {
         selectedPiece = { row, col };
         highlightSquare(row, col, true);
         showPossibleMoves(row, col);
@@ -201,7 +205,7 @@ function movePiece(fromRow, fromCol, toRow, toCol) {
 
     // ターン交代
     currentPlayer = currentPlayer === 'white' ? 'black' : 'white';
-    statusElement.textContent = currentPlayer === 'white' ? '白のターンです' : '黒のターンです';
+    statusElement.textContent = currentPlayer === 'white' ? '白のターンです' : '黒のターンです（AI思考中...）';
 
     renderBoard();
     clearHighlights();
@@ -233,11 +237,11 @@ function getLegalMoves(row, col) {
     if (piece.toUpperCase() === 'P') { // ポーン特殊処理
         const dirY = isWhite ? -1 : 1;
         // 前進
-        if (board[row + dirY][col] === '.') {
+        if (board[row + dirY] && board[row + dirY][col] === '.') {
             moves.push({row: row + dirY, col});
             // 2マス前進
             if ((isWhite && row === 6) || (!isWhite && row === 1)) {
-                if (board[row + 2*dirY][col] === '.') {
+                if (board[row + 2*dirY] && board[row + 2*dirY][col] === '.') {
                     moves.push({row: row + 2*dirY, col});
                 }
             }
@@ -245,7 +249,7 @@ function getLegalMoves(row, col) {
         // 斜め捕獲
         [-1, 1].forEach(dc => {
             const newCol = col + dc;
-            if (newCol >= 0 && newCol < 8) {
+            if (newCol >= 0 && newCol < 8 && board[row + dirY]) {
                 const target = board[row + dirY][newCol];
                 if (target !== '.' && 
                     ((isWhite && target === target.toLowerCase()) || 
@@ -283,6 +287,44 @@ function getLegalMoves(row, col) {
     }
 
     return moves;
+}
+
+// 簡易AI（黒）：ランダムに合法手を選ぶ（ボットらしい動き）
+function aiMove() {
+    let allMoves = [];
+
+    // 黒の全合法手を集める
+    for (let row = 0; row < 8; row++) {
+        for (let col = 0; col < 8; col++) {
+            const piece = board[row][col];
+            if (piece !== '.' && piece === piece.toLowerCase()) {
+                const moves = getLegalMoves(row, col);
+                moves.forEach(m => {
+                    allMoves.push({
+                        fromRow: row,
+                        fromCol: col,
+                        toRow: m.row,
+                        toCol: m.col
+                    });
+                });
+            }
+        }
+    }
+
+    if (allMoves.length === 0) {
+        statusElement.textContent = "黒の合法手がありません（ゲーム終了）";
+        return;
+    }
+
+    // ランダムに1手選ぶ（ボットらしいシンプルさ）
+    const randomIndex = Math.floor(Math.random() * allMoves.length);
+    const chosen = allMoves[randomIndex];
+
+    // 実行
+    movePiece(chosen.fromRow, chosen.fromCol, chosen.toRow, chosen.toCol);
+
+    // 白のターンに戻る
+    statusElement.textContent = '白のターンです';
 }
 
 function newGame() {
