@@ -2,224 +2,256 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <title>Chess-like War Game with AI</title>
+    <title>Tactical War: Terrain & Strategy</title>
     <style>
-        :root { --cell-size: 60px; --bg-color: #2c3e50; }
-        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #1a1a1a; color: white; display: flex; flex-direction: column; align-items: center; }
-        #game-container { position: relative; margin-top: 20px; }
-        #game-board { 
-            display: grid; grid-template-columns: repeat(8, var(--cell-size)); 
-            grid-template-rows: repeat(8, var(--cell-size)); 
-            gap: 1px; border: 4px solid #34495e; background: #7f8c8d;
-        }
-        .cell { 
-            width: var(--cell-size); height: var(--cell-size); 
-            background: #ecf0f1; display: flex; align-items: center; justify-content: center; cursor: pointer;
-        }
-        .cell:nth-child(even) { background: #bdc3c7; } /* 市松模様 */
-        .cell.movable { background: #82ccdd !important; box-shadow: inset 0 0 10px rgba(0,0,0,0.2); }
-        .cell.attackable { background: #fab1a0 !important; }
+        :root { --cell-size: 50px; }
+        body { font-family: 'Courier New', Courier, monospace; background: #1a1a1c; color: #eee; display: flex; flex-direction: column; align-items: center; margin: 0; padding: 20px; }
         
-        .unit { 
-            width: 80%; height: 80%; border-radius: 8px; display: flex; flex-direction: column;
-            align-items: center; justify-content: center; font-weight: bold; font-size: 12px; transition: 0.2s;
-        }
-        .red { background: #e74c3c; color: white; border-bottom: 4px solid #c0392b; }
-        .blue { background: #3498db; color: white; border-bottom: 4px solid #2980b9; }
-        .selected { transform: scale(1.1); outline: 3px solid #f1c40f; z-index: 5; }
+        #game-wrapper { display: flex; gap: 20px; }
+        #board-container { position: relative; border: 4px solid #444; }
+        #board { display: grid; grid-template-columns: repeat(10, var(--cell-size)); grid-template-rows: repeat(10, var(--cell-size)); background: #222; }
         
-        #ui { text-align: center; margin-bottom: 10px; }
-        .log { background: rgba(0,0,0,0.5); padding: 10px; border-radius: 5px; min-width: 300px; margin-top: 10px; }
+        .cell { width: var(--cell-size); height: var(--cell-size); display: flex; align-items: center; justify-content: center; position: relative; font-size: 20px; cursor: pointer; border: 0.1px solid rgba(255,255,255,0.05); }
+        /* 地形カラー */
+        .plain { background: #4a773c; } /* 平地 */
+        .forest { background: #2d5a27; } /* 森 */
+        .mountain { background: #555; cursor: not-allowed; } /* 岩山 */
+        .water { background: #2980b9; } /* 川 */
+
+        .movable::after { content: ''; position: absolute; width: 40%; height: 40%; background: rgba(255,255,0,0.4); border-radius: 50%; }
+        .attackable::after { content: ''; position: absolute; width: 80%; height: 80%; border: 3px solid rgba(255,0,0,0.6); border-radius: 10%; }
+
+        .unit { width: 85%; height: 85%; border-radius: 4px; display: flex; flex-direction: column; align-items: center; justify-content: center; font-weight: bold; position: relative; z-index: 2; transition: transform 0.2s; }
+        .red { background: #c0392b; border: 2px solid #ff7675; }
+        .blue { background: #2980b9; border: 2px solid #74b9ff; }
+        .selected { transform: scale(1.1) translateY(-5px); box-shadow: 0 5px 15px rgba(0,0,0,0.5); z-index: 10; }
+        
+        .hp-bar { position: absolute; bottom: 2px; left: 10%; width: 80%; height: 4px; background: #000; }
+        .hp-fill { height: 100%; background: #2ecc71; transition: width 0.3s; }
+
+        #info-panel { width: 250px; background: #2c3e50; padding: 15px; border-radius: 8px; border: 1px solid #444; }
+        .status-box { margin-bottom: 20px; padding: 10px; background: #34495e; border-left: 4px solid #f1c40f; }
+        button { background: #f1c40f; border: none; padding: 10px; width: 100%; font-weight: bold; cursor: pointer; border-radius: 4px; }
+        button:hover { background: #f39c12; }
+        .log { font-size: 12px; height: 150px; overflow-y: auto; background: #111; padding: 5px; margin-top: 10px; color: #aaa; }
     </style>
 </head>
 <body>
 
-    <div id="ui">
-        <h2>Strategic War Game</h2>
-        <div id="turn-indicator" style="font-size: 1.5rem; color: #e74c3c;">プレイヤーの番（赤軍）</div>
-        <div class="log" id="msg">自軍のユニットを選択してください</div>
+<div id="ui-top">
+    <h2 id="turn-display" style="color:#c0392b">PLAYER TURN</h2>
+</div>
+
+<div id="game-wrapper">
+    <div id="board-container">
+        <div id="board"></div>
     </div>
 
-    <div id="game-container">
-        <div id="game-board"></div>
+    <div id="info-panel">
+        <div id="unit-detail" class="status-box">
+            ユニットを選択してください
+        </div>
+        <button onclick="endTurn()">ターン終了</button>
+        <div class="log" id="log">--- 戦闘記録 ---</div>
     </div>
+</div>
 
 <script>
-const SIZE = 8;
-let units = [];
-let selectedUnit = null;
-let turn = 'red'; // red or blue (AI)
-let gameOver = false;
+const SIZE = 10;
+const board = document.getElementById('board');
+const logEl = document.getElementById('log');
 
-// ユニット定義
+// 地形データ (0:平地, 1:森, 2:岩山, 3:水)
+const MAP_DATA = [
+    [0,0,2,0,0,0,0,0,0,0],
+    [0,1,2,0,1,1,0,3,3,0],
+    [0,1,2,0,1,1,0,3,0,0],
+    [0,0,0,0,0,0,0,3,0,0],
+    [0,0,0,3,3,3,3,3,0,0],
+    [0,1,0,0,0,0,0,0,0,0],
+    [0,1,1,0,0,2,2,0,1,0],
+    [0,0,0,0,0,2,0,1,1,0],
+    [0,3,3,0,0,2,0,0,0,0],
+    [0,0,0,0,0,0,0,0,0,0]
+];
+
 const UNIT_TYPES = {
-    KING: { name: '将', symbol: '👑', move: 'king' },
-    PAWN: { name: '歩', symbol: '兵', move: 'pawn' },
-    KNIGHT: { name: '馬', symbol: '騎', move: 'knight' },
-    ARCHER: { name: '弓', symbol: '弓', move: 'archer' }
+    SWORD: { name: '剣士', icon: '⚔️', hp: 20, atk: 8, def: 2, range: 1, move: 3 },
+    SHIELD: { name: '盾兵', icon: '🛡️', hp: 35, atk: 5, def: 5, range: 1, move: 2 },
+    ARCHER: { name: '弓兵', icon: '🏹', hp: 15, atk: 7, def: 1, range: 3, move: 3 }
 };
 
-function initGame() {
-    units = [
-        // 赤軍 (Player)
-        { team: 'red', type: 'KING', x: 4, y: 7 },
-        { team: 'red', type: 'PAWN', x: 3, y: 6 }, { team: 'red', type: 'PAWN', x: 4, y: 6 }, { team: 'red', type: 'PAWN', x: 5, y: 6 },
-        { team: 'red', type: 'KNIGHT', x: 2, y: 7 }, { team: 'red', type: 'ARCHER', x: 6, y: 7 },
-        // 青軍 (AI)
-        { team: 'blue', type: 'KING', x: 3, y: 0 },
-        { team: 'blue', type: 'PAWN', x: 2, y: 1 }, { team: 'blue', type: 'PAWN', x: 3, y: 1 }, { team: 'blue', type: 'PAWN', x: 4, y: 1 },
-        { team: 'blue', type: 'KNIGHT', x: 5, y: 0 }, { team: 'blue', type: 'ARCHER', x: 1, y: 0 }
-    ];
+let units = [
+    { team: 'red', type: 'SWORD', x: 1, y: 8, hp: 20, acted: false },
+    { team: 'red', type: 'SHIELD', x: 2, y: 9, hp: 35, acted: false },
+    { team: 'red', type: 'ARCHER', x: 0, y: 9, hp: 15, acted: false },
+    { team: 'blue', type: 'SWORD', x: 8, y: 1, hp: 20, acted: false },
+    { team: 'blue', type: 'SHIELD', x: 7, y: 0, hp: 35, acted: false },
+    { team: 'blue', type: 'ARCHER', x: 9, y: 0, hp: 15, acted: false }
+];
+
+let selectedUnit = null;
+let turn = 'red';
+
+function init() {
     render();
 }
 
-// 移動範囲の計算ロジック
-function getValidMoves(unit) {
-    let moves = [];
-    const patterns = {
-        king: [[1,0], [-1,0], [0,1], [0,-1], [1,1], [1,-1], [-1,1], [-1,-1]],
-        pawn: [[1,0], [-1,0], [0,1], [0,-1]],
-        knight: [[1,2], [1,-2], [-1,2], [-1,-2], [2,1], [2,-1], [-2,1], [-2,-1]],
-        archer: [[0,2], [0,-2], [2,0], [-2,0], [0,1], [0,-1], [1,0], [-1,0]]
-    };
-
-    patterns[UNIT_TYPES[unit.type].move].forEach(p => {
-        let nx = unit.x + p[0], ny = unit.y + p[1];
-        if (nx >= 0 && nx < SIZE && ny >= 0 && ny < SIZE) {
-            moves.push({x: nx, y: ny});
-        }
-    });
-    return moves;
+function getTerrain(x, y) {
+    const types = ['plain', 'forest', 'mountain', 'water'];
+    return types[MAP_DATA[y][x]];
 }
 
-function handleCellClick(x, y) {
-    if (turn !== 'red' || gameOver) return;
-
-    const clickedUnit = units.find(u => u.x === x && u.y === y);
-
-    if (clickedUnit && clickedUnit.team === 'red') {
-        selectedUnit = clickedUnit;
-        render();
-        return;
-    }
-
-    if (selectedUnit) {
-        const moves = getValidMoves(selectedUnit);
-        const canMove = moves.find(m => m.x === x && m.y === y);
-
-        if (canMove) {
-            executeMove(selectedUnit, x, y);
-        }
-    }
-}
-
-function executeMove(unit, x, y) {
-    const targetUnit = units.find(u => u.x === x && u.y === y);
-    
-    if (targetUnit) {
-        if (targetUnit.team === unit.team) return;
-        // 攻撃成功
-        units = units.filter(u => u !== targetUnit);
-        document.getElementById('msg').innerText = `${UNIT_TYPES[unit.type].name}が敵の${UNIT_TYPES[targetUnit.type].name}を撃破！`;
-        if (targetUnit.type === 'KING') endGame(unit.team);
-    }
-
-    unit.x = x;
-    unit.y = y;
-    selectedUnit = null;
-    
-    if (!gameOver) {
-        turn = (unit.team === 'red') ? 'blue' : 'red';
-        render();
-        if (turn === 'blue') setTimeout(aiTurn, 800);
-    }
-}
-
-// 簡易AIのロジック
-function aiTurn() {
-    if (gameOver) return;
-    
-    const aiUnits = units.filter(u => u.team === 'blue');
-    let bestAction = null;
-
-    // 1. 攻撃できるなら攻撃する
-    for (let u of aiUnits) {
-        const moves = getValidMoves(u);
-        for (let m of moves) {
-            const target = units.find(t => t.x === m.x && t.y === m.y && t.team === 'red');
-            if (target) {
-                // 王を殺せるなら最優先
-                let score = (target.type === 'KING') ? 100 : 10;
-                if (!bestAction || score > bestAction.score) {
-                    bestAction = { unit: u, x: m.x, y: m.y, score: score };
-                }
-            }
-        }
-    }
-
-    // 2. 攻撃できないなら、プレイヤーの王に近づく
-    if (!bestAction) {
-        const playerKing = units.find(u => u.team === 'red' && u.type === 'KING');
-        if (!playerKing) return;
-
-        let u = aiUnits[Math.floor(Math.random() * aiUnits.length)];
-        const moves = getValidMoves(u);
-        // 王様に一番近いマスを探す
-        moves.sort((a, b) => {
-            const distA = Math.abs(a.x - playerKing.x) + Math.abs(a.y - playerKing.y);
-            const distB = Math.abs(b.x - playerKing.x) + Math.abs(b.y - playerKing.y);
-            return distA - distB;
-        });
-        
-        // 他のユニットがいないマスへ
-        const targetMove = moves.find(m => !units.some(u2 => u2.x === m.x && u2.y === m.y)) || moves[0];
-        bestAction = { unit: u, x: targetMove.x, y: targetMove.y };
-    }
-
-    executeMove(bestAction.unit, bestAction.x, bestAction.y);
-}
-
-function endGame(winner) {
-    gameOver = true;
-    const msg = winner === 'red' ? "あなたの勝利です！" : "敗北... 敵軍の勝利です。";
-    document.getElementById('msg').innerText = msg;
-    alert(msg);
+function getDefBonus(x, y) {
+    if (getTerrain(x, y) === 'forest') return 2;
+    if (getTerrain(x, y) === 'water') return -2;
+    return 0;
 }
 
 function render() {
-    const board = document.getElementById('game-board');
     board.innerHTML = '';
-    
-    document.getElementById('turn-indicator').innerText = turn === 'red' ? "プレイヤーの番（赤軍）" : "敵の思考中...";
-    document.getElementById('turn-indicator').style.color = turn === 'red' ? "#e74c3c" : "#3498db";
-
-    const validMoves = selectedUnit ? getValidMoves(selectedUnit) : [];
-
     for (let y = 0; y < SIZE; y++) {
         for (let x = 0; x < SIZE; x++) {
             const cell = document.createElement('div');
-            cell.className = 'cell';
-            const move = validMoves.find(m => m.x === x && m.y === y);
-            if (move) {
-                const isEnemy = units.some(u => u.x === x && u.y === y && u.team !== selectedUnit.team);
-                cell.classList.add(isEnemy ? 'attackable' : 'movable');
-            }
+            const terrain = getTerrain(x, y);
+            cell.className = `cell ${terrain}`;
             
-            cell.onclick = () => handleCellClick(x, y);
-
             const unit = units.find(u => u.x === x && u.y === y);
             if (unit) {
                 const uEl = document.createElement('div');
                 uEl.className = `unit ${unit.team} ${selectedUnit === unit ? 'selected' : ''}`;
-                uEl.innerHTML = `<span>${UNIT_TYPES[unit.type].symbol}</span><span style="font-size:9px">${UNIT_TYPES[unit.type].name}</span>`;
+                if (unit.acted) uEl.style.filter = "grayscale(0.8)";
+                uEl.innerHTML = `<span>${UNIT_TYPES[unit.type].icon}</span>
+                                 <div class="hp-bar"><div class="hp-fill" style="width:${(unit.hp/UNIT_TYPES[unit.type].hp)*100}%"></div></div>`;
                 cell.appendChild(uEl);
             }
+
+            // 移動可能・攻撃可能範囲の表示
+            if (selectedUnit && !selectedUnit.acted && turn === 'red') {
+                const dist = Math.abs(selectedUnit.x - x) + Math.abs(selectedUnit.y - y);
+                if (dist > 0 && dist <= UNIT_TYPES[selectedUnit.type].move && terrain !== 'mountain' && !unit) {
+                    cell.classList.add('movable');
+                }
+                if (unit && unit.team !== selectedUnit.team && dist <= UNIT_TYPES[selectedUnit.type].range) {
+                    cell.classList.add('attackable');
+                }
+            }
+
+            cell.onclick = () => handleCellClick(x, y);
             board.appendChild(cell);
         }
     }
 }
 
-initGame();
+function handleCellClick(x, y) {
+    if (turn !== 'red') return;
+    const clickedUnit = units.find(u => u.x === x && u.y === y);
+
+    if (clickedUnit && clickedUnit.team === 'red' && !clickedUnit.acted) {
+        selectedUnit = clickedUnit;
+        updateDetail(clickedUnit);
+        render();
+        return;
+    }
+
+    if (selectedUnit) {
+        const dist = Math.abs(selectedUnit.x - x) + Math.abs(selectedUnit.y - y);
+        
+        // 攻撃
+        if (clickedUnit && clickedUnit.team === 'blue' && dist <= UNIT_TYPES[selectedUnit.type].range) {
+            attack(selectedUnit, clickedUnit);
+            selectedUnit.acted = true;
+            selectedUnit = null;
+        } 
+        // 移動
+        else if (!clickedUnit && dist <= UNIT_TYPES[selectedUnit.type].move && getTerrain(x, y) !== 'mountain') {
+            selectedUnit.x = x;
+            selectedUnit.y = y;
+            selectedUnit.acted = true;
+            selectedUnit = null;
+        }
+        render();
+    }
+}
+
+function attack(attacker, defender) {
+    const atkPower = UNIT_TYPES[attacker.type].atk + Math.floor(attacker.hp / 5);
+    const defPower = UNIT_TYPES[defender.type].def + getDefBonus(defender.x, defender.y);
+    const damage = Math.max(1, atkPower - defPower);
+    
+    defender.hp -= damage;
+    addLog(`${attacker.team}の${UNIT_TYPES[attacker.type].name}が${damage}ダメ与えた`);
+
+    // 反撃 (弓兵以外または隣接時)
+    if (defender.hp > 0) {
+        const dist = Math.abs(attacker.x - defender.x) + Math.abs(attacker.y - defender.y);
+        if (dist <= UNIT_TYPES[defender.type].range) {
+            const counterDamage = Math.max(1, Math.floor((UNIT_TYPES[defender.type].atk - UNIT_TYPES[attacker.type].def) / 2));
+            attacker.hp -= counterDamage;
+            addLog(`反撃で${counterDamage}受けた`);
+        }
+    }
+
+    units = units.filter(u => u.hp > 0);
+    if (attacker.hp <= 0) addLog("自軍ユニットが倒れた！");
+}
+
+function updateDetail(unit) {
+    const type = UNIT_TYPES[unit.type];
+    document.getElementById('unit-detail').innerHTML = `
+        <strong>${type.name}</strong> (${unit.team === 'red' ? '自軍' : '敵軍'})<br>
+        HP: ${unit.hp} / ${type.hp}<br>
+        ATK: ${type.atk} | DEF: ${type.def}<br>
+        地形: ${getTerrain(unit.x, unit.y)}
+    `;
+}
+
+function addLog(msg) {
+    const div = document.createElement('div');
+    div.innerText = msg;
+    logEl.prepend(div);
+}
+
+function endTurn() {
+    selectedUnit = null;
+    units.forEach(u => u.acted = false);
+    if (turn === 'red') {
+        turn = 'blue';
+        document.getElementById('turn-display').innerText = "ENEMY TURN";
+        document.getElementById('turn-display').style.color = "#2980b9";
+        setTimeout(aiTurn, 1000);
+    } else {
+        turn = 'red';
+        document.getElementById('turn-display').innerText = "PLAYER TURN";
+        document.getElementById('turn-display').style.color = "#c0392b";
+    }
+    render();
+}
+
+function aiTurn() {
+    const aiUnits = units.filter(u => u.team === 'blue');
+    aiUnits.forEach(u => {
+        const targets = units.filter(t => t.team === 'red');
+        // 最も近い敵を探す
+        targets.sort((a, b) => (Math.abs(u.x - a.x) + Math.abs(u.y - a.y)) - (Math.abs(u.x - b.x) + Math.abs(u.y - b.y)));
+        const target = targets[0];
+
+        if (target) {
+            const dist = Math.abs(u.x - target.x) + Math.abs(u.y - target.y);
+            if (dist <= UNIT_TYPES[u.type].range) {
+                attack(u, target);
+            } else {
+                // 近づく（簡易）
+                if (u.x < target.x && getTerrain(u.x+1, u.y) !== 'mountain') u.x++;
+                else if (u.x > target.x && getTerrain(u.x-1, u.y) !== 'mountain') u.x--;
+                else if (u.y < target.y && getTerrain(u.x, u.y+1) !== 'mountain') u.y++;
+            }
+        }
+    });
+    endTurn();
+}
+
+init();
 </script>
 </body>
 </html>
