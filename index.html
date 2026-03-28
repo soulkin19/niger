@@ -2,44 +2,62 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <title>Tactical War: Terrain & Strategy</title>
+    <title>Tactical Tank War: 10vs10 & Repair Station</title>
     <style>
-        :root { --cell-size: 50px; }
-        body { font-family: 'Courier New', Courier, monospace; background: #1a1a1c; color: #eee; display: flex; flex-direction: column; align-items: center; margin: 0; padding: 20px; }
+        :root { --cell-size: 55px; }
+        body { font-family: 'Consolas', 'Courier New', monospace; background: #121212; color: #e0e0e0; display: flex; flex-direction: column; align-items: center; margin: 0; padding: 15px; }
         
-        #game-wrapper { display: flex; gap: 20px; }
-        #board-container { position: relative; border: 4px solid #444; }
+        #ui-top { text-align: center; margin-bottom: 10px; }
+        #turn-display { font-size: 1.8rem; font-weight: bold; padding: 5px 20px; border-radius: 5px; }
+        .red-turn { background: #601a1a; color: #ff7675; border: 2px solid #ff7675; }
+        .blue-turn { background: #1a2a60; color: #74b9ff; border: 2px solid #74b9ff; }
+
+        #game-wrapper { display: flex; gap: 15px; }
+        #board-container { position: relative; border: 5px solid #444; border-radius: 4px; overflow: hidden; }
         #board { display: grid; grid-template-columns: repeat(10, var(--cell-size)); grid-template-rows: repeat(10, var(--cell-size)); background: #222; }
         
-        .cell { width: var(--cell-size); height: var(--cell-size); display: flex; align-items: center; justify-content: center; position: relative; font-size: 20px; cursor: pointer; border: 0.1px solid rgba(255,255,255,0.05); }
+        .cell { width: var(--cell-size); height: var(--cell-size); display: flex; align-items: center; justify-content: center; position: relative; font-size: 24px; cursor: pointer; border: 1px solid rgba(255,255,255,0.03); box-sizing: border-box; }
         /* 地形カラー */
-        .plain { background: #4a773c; } /* 平地 */
-        .forest { background: #2d5a27; } /* 森 */
-        .mountain { background: #555; cursor: not-allowed; } /* 岩山 */
-        .water { background: #2980b9; } /* 川 */
+        .plain { background: #3d5a32; } /* 平地 */
+        .forest { background: #22441f; } /* 森 */
+        .mountain { background: #444; cursor: not-allowed; color: #666; font-size: 16px; } /* 岩山 */
+        .repair { background: #555; position: relative; border: 2px solid #f1c40f; } /* 修理ステーション */
+        .repair::after { content: '⚙️'; position: absolute; font-size: 30px; opacity: 0.6; }
 
-        .movable::after { content: ''; position: absolute; width: 40%; height: 40%; background: rgba(255,255,0,0.4); border-radius: 50%; }
-        .attackable::after { content: ''; position: absolute; width: 80%; height: 80%; border: 3px solid rgba(255,0,0,0.6); border-radius: 10%; }
+        /* 移動・攻撃範囲 */
+        .movable::after { content: ''; position: absolute; width: 35%; height: 35%; background: rgba(255,255,0,0.5); border-radius: 50%; }
+        .attackable::after { content: ''; position: absolute; width: 85%; height: 85%; border: 3px solid rgba(255,50,50,0.7); border-radius: 15%; box-sizing: border-box; }
 
-        .unit { width: 85%; height: 85%; border-radius: 4px; display: flex; flex-direction: column; align-items: center; justify-content: center; font-weight: bold; position: relative; z-index: 2; transition: transform 0.2s; }
-        .red { background: #c0392b; border: 2px solid #ff7675; }
-        .blue { background: #2980b9; border: 2px solid #74b9ff; }
-        .selected { transform: scale(1.1) translateY(-5px); box-shadow: 0 5px 15px rgba(0,0,0,0.5); z-index: 10; }
+        .unit { width: 90%; height: 90%; border-radius: 8px; display: flex; flex-direction: column; align-items: center; justify-content: center; font-weight: bold; position: relative; z-index: 2; transition: transform 0.2s, filter 0.2s; box-shadow: 0 2px 5px rgba(0,0,0,0.5); }
+        .unit.red { background: #c0392b; border: 2px solid #ff7675; color: white;}
+        .unit.blue { background: #2980b9; border: 2px solid #74b9ff; color: white; }
         
-        .hp-bar { position: absolute; bottom: 2px; left: 10%; width: 80%; height: 4px; background: #000; }
-        .hp-fill { height: 100%; background: #2ecc71; transition: width 0.3s; }
+        .selected { transform: scale(1.1) translateY(-3px); box-shadow: 0 8px 20px rgba(0,0,0,0.7); z-index: 10; outline: 3px solid #f1c40f; }
+        .acted { filter: grayscale(0.9) brightness(0.6); }
+        
+        .unit-icon { font-size: 24px; }
+        .gun-tag { font-size: 9px; position: absolute; top: 1px; right: 2px; background: rgba(0,0,0,0.5); padding: 1px 3px; border-radius: 3px; }
 
-        #info-panel { width: 250px; background: #2c3e50; padding: 15px; border-radius: 8px; border: 1px solid #444; }
-        .status-box { margin-bottom: 20px; padding: 10px; background: #34495e; border-left: 4px solid #f1c40f; }
-        button { background: #f1c40f; border: none; padding: 10px; width: 100%; font-weight: bold; cursor: pointer; border-radius: 4px; }
-        button:hover { background: #f39c12; }
-        .log { font-size: 12px; height: 150px; overflow-y: auto; background: #111; padding: 5px; margin-top: 10px; color: #aaa; }
+        .hp-bar { position: absolute; bottom: 3px; left: 10%; width: 80%; height: 5px; background: #000; border-radius: 2px; }
+        .hp-fill { height: 100%; background: #2ecc71; transition: width 0.3s; border-radius: 2px; }
+
+        #info-panel { width: 280px; background: #2c3e50; padding: 15px; border-radius: 8px; border: 1px solid #444; display: flex; flex-direction: column; }
+        .status-box { margin-bottom: 15px; padding: 12px; background: #34495e; border-left: 5px solid #f1c40f; border-radius: 4px; }
+        .count-box { display: flex; justify-content: space-between; margin-bottom: 10px; font-weight: bold; }
+        
+        button { background: #e67e22; border: none; padding: 12px; width: 100%; font-weight: bold; color: white; cursor: pointer; border-radius: 4px; font-size: 1.1rem; transition: background 0.2s; }
+        button:hover { background: #d35400; }
+        
+        .log { font-size: 12px; height: 180px; overflow-y: auto; background: #111; padding: 8px; margin-top: 15px; color: #bbb; border-radius: 4px; border: 1px solid #333; flex-grow: 1; }
+        .log-red { color: #ff7675; }
+        .log-blue { color: #74b9ff; }
+        .log-system { color: #f1c40f; font-weight: bold; }
     </style>
 </head>
 <body>
 
 <div id="ui-top">
-    <h2 id="turn-display" style="color:#c0392b">PLAYER TURN</h2>
+    <div id="turn-display" class="red-turn">PLAYER TURN (RED)</div>
 </div>
 
 <div id="game-wrapper">
@@ -48,11 +66,15 @@
     </div>
 
     <div id="info-panel">
-        <div id="unit-detail" class="status-box">
-            ユニットを選択してください
+        <div class="count-box">
+            <span style="color:#ff7675">RED: <span id="red-count">10</span></span>
+            <span style="color:#74b9ff">BLUE: <span id="blue-count">10</span></span>
         </div>
-        <button onclick="endTurn()">ターン終了</button>
-        <div class="log" id="log">--- 戦闘記録 ---</div>
+        <div id="unit-detail" class="status-box">
+            戦車を選択してください
+        </div>
+        <button onclick="endTurn()">ターン終了 (End Turn)</button>
+        <div class="log" id="log"><div>--- 戦闘記録 (Battle Log) ---</div></div>
     </div>
 </div>
 
@@ -61,78 +83,111 @@ const SIZE = 10;
 const board = document.getElementById('board');
 const logEl = document.getElementById('log');
 
-// 地形データ (0:平地, 1:森, 2:岩山, 3:水)
+// 地形データ (0:平地, 1:森, 2:岩山, 4:修理ステーション)
 const MAP_DATA = [
-    [0,0,2,0,0,0,0,0,0,0],
-    [0,1,2,0,1,1,0,3,3,0],
-    [0,1,2,0,1,1,0,3,0,0],
-    [0,0,0,0,0,0,0,3,0,0],
-    [0,0,0,3,3,3,3,3,0,0],
-    [0,1,0,0,0,0,0,0,0,0],
-    [0,1,1,0,0,2,2,0,1,0],
-    [0,0,0,0,0,2,0,1,1,0],
-    [0,3,3,0,0,2,0,0,0,0],
-    [0,0,0,0,0,0,0,0,0,0]
+    [0,0,0,0,4,4,0,0,0,0], // 上端中央に敵修理ステーション
+    [0,1,1,0,0,0,0,1,1,0],
+    [0,1,0,0,2,2,0,0,1,0],
+    [0,0,0,0,0,0,0,0,0,0],
+    [2,0,0,1,1,1,1,0,0,2],
+    [2,0,0,1,1,1,1,0,0,2],
+    [0,0,0,0,0,0,0,0,0,0],
+    [0,1,0,0,2,2,0,0,1,0],
+    [0,1,1,0,0,0,0,1,1,0],
+    [0,0,0,0,4,4,0,0,0,0]  // 下端中央に自軍修理ステーション
 ];
 
-const UNIT_TYPES = {
-    SWORD: { name: '剣士', icon: '⚔️', hp: 20, atk: 8, def: 2, range: 1, move: 3 },
-    SHIELD: { name: '盾兵', icon: '🛡️', hp: 35, atk: 5, def: 5, range: 1, move: 2 },
-    ARCHER: { name: '弓兵', icon: '🏹', hp: 15, atk: 7, def: 1, range: 3, move: 3 }
+// 主砲タイプ定義
+const GUN_TYPES = {
+    LIGHT: { name: '軽主砲', tag: 'L', atk: 7, def: 3, range: 3, move: 3 },
+    HEAVY: { name: '重主砲', tag: 'H', atk: 11, def: 5, range: 2, move: 2 },
+    LONG:  { name: '長距離砲', tag: 'LR', atk: 6, def: 2, range: 6, move: 3 }
 };
+const GUN_KEYS = Object.keys(GUN_TYPES);
 
-let units = [
-    { team: 'red', type: 'SWORD', x: 1, y: 8, hp: 20, acted: false },
-    { team: 'red', type: 'SHIELD', x: 2, y: 9, hp: 35, acted: false },
-    { team: 'red', type: 'ARCHER', x: 0, y: 9, hp: 15, acted: false },
-    { team: 'blue', type: 'SWORD', x: 8, y: 1, hp: 20, acted: false },
-    { team: 'blue', type: 'SHIELD', x: 7, y: 0, hp: 35, acted: false },
-    { team: 'blue', type: 'ARCHER', x: 9, y: 0, hp: 15, acted: false }
-];
-
+let units = [];
 let selectedUnit = null;
 let turn = 'red';
+let gameOver = false;
 
 function init() {
+    // ユニットの初期化 (敵味方10台ずつ)
+    units = [];
+    // Red (Player) - 下側
+    for(let i=0; i<10; i++){
+        let gunKey = GUN_KEYS[Math.floor(Math.random() * GUN_KEYS.length)];
+        // 修理ステーション（4,9と5,9）を避けて配置
+        let x = i; 
+        let y = (i === 4 || i === 5) ? 8 : 9;
+        units.push({ team: 'red', id: i, gun: gunKey, x: x, y: y, hp: 20, acted: false });
+    }
+    // Blue (AI) - 上側
+    for(let i=0; i<10; i++){
+        let gunKey = GUN_KEYS[Math.floor(Math.random() * GUN_KEYS.length)];
+        // 修理ステーション（4,0と5,0）を避けて配置
+        let x = i;
+        let y = (i === 4 || i === 5) ? 1 : 0;
+        units.push({ team: 'blue', id: i+10, gun: gunKey, x: x, y: y, hp: 20, acted: false });
+    }
     render();
+    addLog("戦闘開始。修理ステーション⚙️を活用せよ。", 'system');
 }
 
 function getTerrain(x, y) {
-    const types = ['plain', 'forest', 'mountain', 'water'];
-    return types[MAP_DATA[y][x]];
-}
-
-function getDefBonus(x, y) {
-    if (getTerrain(x, y) === 'forest') return 2;
-    if (getTerrain(x, y) === 'water') return -2;
-    return 0;
+    const types = ['plain', 'forest', 'mountain', 'water', 'repair'];
+    return types[MAP_DATA[y][x]] || 'plain';
 }
 
 function render() {
     board.innerHTML = '';
+    
+    // カウント更新
+    const redCount = units.filter(u => u.team === 'red').length;
+    const blueCount = units.filter(u => u.team === 'blue').length;
+    document.getElementById('red-count').innerText = redCount;
+    document.getElementById('blue-count').innerText = blueCount;
+
+    // 勝利判定
+    if (redCount === 0 || blueCount === 0) {
+        endGame(redCount > 0 ? 'red' : 'blue');
+        return;
+    }
+
+    // ボード描画
     for (let y = 0; y < SIZE; y++) {
         for (let x = 0; x < SIZE; x++) {
             const cell = document.createElement('div');
             const terrain = getTerrain(x, y);
             cell.className = `cell ${terrain}`;
+            if (terrain === 'mountain') cell.innerText = '▲';
             
             const unit = units.find(u => u.x === x && u.y === y);
             if (unit) {
+                const gunInfo = GUN_TYPES[unit.gun];
                 const uEl = document.createElement('div');
-                uEl.className = `unit ${unit.team} ${selectedUnit === unit ? 'selected' : ''}`;
-                if (unit.acted) uEl.style.filter = "grayscale(0.8)";
-                uEl.innerHTML = `<span>${UNIT_TYPES[unit.type].icon}</span>
-                                 <div class="hp-bar"><div class="hp-fill" style="width:${(unit.hp/UNIT_TYPES[unit.type].hp)*100}%"></div></div>`;
+                uEl.className = `unit ${unit.team} ${selectedUnit === unit ? 'selected' : ''} ${unit.acted ? 'acted' : ''}`;
+                uEl.innerHTML = `<span class="unit-icon">🚜</span>
+                                 <span class="gun-tag">${gunInfo.tag}</span>
+                                 <div class="hp-bar"><div class="hp-fill" style="width:${(unit.hp/20)*100}%"></div></div>`;
                 cell.appendChild(uEl);
             }
 
             // 移動可能・攻撃可能範囲の表示
-            if (selectedUnit && !selectedUnit.acted && turn === 'red') {
+            if (selectedUnit && !selectedUnit.acted && turn === 'red' && !gameOver) {
                 const dist = Math.abs(selectedUnit.x - x) + Math.abs(selectedUnit.y - y);
-                if (dist > 0 && dist <= UNIT_TYPES[selectedUnit.type].move && terrain !== 'mountain' && !unit) {
+                const gunInfo = GUN_TYPES[selectedUnit.gun];
+                // 移動範囲 (直線距離ではなく、障害物を考慮しない簡易版。ただし山とユニット上は不可)
+                if (dist > 0 && dist <= gunInfo.move && terrain !== 'mountain' && terrain !== 'repair' && !unit) {
                     cell.classList.add('movable');
                 }
-                if (unit && unit.team !== selectedUnit.team && dist <= UNIT_TYPES[selectedUnit.type].range) {
+                // 修理ステーションへの移動 (自軍のみ)
+                if (dist > 0 && dist <= gunInfo.move && terrain === 'repair' && !unit) {
+                    if ((selectedUnit.team === 'red' && y === 9) || (selectedUnit.team === 'blue' && y === 0)) {
+                        cell.classList.add('movable');
+                    }
+                }
+                // 攻撃範囲 (マンハッタン距離)
+                if (unit && unit.team !== selectedUnit.team && dist <= gunInfo.range) {
                     cell.classList.add('attackable');
                 }
             }
@@ -144,9 +199,10 @@ function render() {
 }
 
 function handleCellClick(x, y) {
-    if (turn !== 'red') return;
+    if (turn !== 'red' || gameOver) return;
     const clickedUnit = units.find(u => u.x === x && u.y === y);
 
+    // 1. 自軍ユニットを選択
     if (clickedUnit && clickedUnit.team === 'red' && !clickedUnit.acted) {
         selectedUnit = clickedUnit;
         updateDetail(clickedUnit);
@@ -154,101 +210,238 @@ function handleCellClick(x, y) {
         return;
     }
 
+    // 2. ユニット選択中の行動
     if (selectedUnit) {
+        const gunInfo = GUN_TYPES[selectedUnit.gun];
         const dist = Math.abs(selectedUnit.x - x) + Math.abs(selectedUnit.y - y);
         
-        // 攻撃
-        if (clickedUnit && clickedUnit.team === 'blue' && dist <= UNIT_TYPES[selectedUnit.type].range) {
+        // --- A. 攻撃実行 ---
+        if (clickedUnit && clickedUnit.team === 'blue' && dist <= gunInfo.range) {
             attack(selectedUnit, clickedUnit);
             selectedUnit.acted = true;
             selectedUnit = null;
+            render();
         } 
-        // 移動
-        else if (!clickedUnit && dist <= UNIT_TYPES[selectedUnit.type].move && getTerrain(x, y) !== 'mountain') {
+        // --- B. 移動実行 ---
+        else if (!clickedUnit && dist <= gunInfo.move && getTerrain(x, y) !== 'mountain') {
+            // 修理ステーションへの移動制限
+            if (getTerrain(x,y) === 'repair') {
+                if (selectedUnit.team === 'red' && y !== 9) {
+                    addLog("敵の修理ステーションは利用できません。", 'system');
+                    return;
+                }
+            }
+
             selectedUnit.x = x;
             selectedUnit.y = y;
-            selectedUnit.acted = true;
+            selectedUnit.acted = true; // 移動したらそのターンは行動終了
+            
+            // 修理ステーション上ならログを出す
+            if (getTerrain(x, y) === 'repair') {
+                addLog(`Red車(${gunInfo.tag})が修理ステーション⚙️に到着。次ターンHP回復。`, 'red');
+            } else {
+                addLog(`Red車(${gunInfo.tag})が移動しました。`, 'red');
+            }
+
             selectedUnit = null;
+            render();
         }
-        render();
     }
 }
 
 function attack(attacker, defender) {
-    const atkPower = UNIT_TYPES[attacker.type].atk + Math.floor(attacker.hp / 5);
-    const defPower = UNIT_TYPES[defender.type].def + getDefBonus(defender.x, defender.y);
-    const damage = Math.max(1, atkPower - defPower);
+    const aGun = GUN_TYPES[attacker.type];
+    const dGun = GUN_TYPES[defender.type];
+    
+    // ダメージ計算 (攻撃力 + 残りHP/10 - 防御力)
+    const atkPower = GUN_TYPES[attacker.gun].atk + Math.floor(attacker.hp / 10);
+    const defPower = GUN_TYPES[defender.gun].def;
+    const damage = Math.max(1, atkPower - defPower + (Math.random() < 0.2 ? 2 : 0)); // 20%でクリティカル+2
     
     defender.hp -= damage;
-    addLog(`${attacker.team}の${UNIT_TYPES[attacker.type].name}が${damage}ダメ与えた`);
+    addLog(`${attacker.team==='red'?'Red':'Blue'}車(${GUN_TYPES[attacker.gun].tag})が敵車に${damage}ダメ与えた！`, attacker.team);
 
-    // 反撃 (弓兵以外または隣接時)
-    if (defender.hp > 0) {
-        const dist = Math.abs(attacker.x - defender.x) + Math.abs(attacker.y - defender.y);
-        if (dist <= UNIT_TYPES[defender.type].range) {
-            const counterDamage = Math.max(1, Math.floor((UNIT_TYPES[defender.type].atk - UNIT_TYPES[attacker.type].def) / 2));
-            attacker.hp -= counterDamage;
-            addLog(`反撃で${counterDamage}受けた`);
-        }
+    // 撃破判定
+    if (defender.hp <= 0) {
+        units = units.filter(u => u !== defender);
+        addLog(`☠️ ${defender.team==='red'?'Red':'Blue'}車が撃破された！`, 'system');
     }
 
-    units = units.filter(u => u.hp > 0);
-    if (attacker.hp <= 0) addLog("自軍ユニットが倒れた！");
+    render();
 }
 
 function updateDetail(unit) {
-    const type = UNIT_TYPES[unit.type];
+    const gun = GUN_TYPES[unit.gun];
     document.getElementById('unit-detail').innerHTML = `
-        <strong>${type.name}</strong> (${unit.team === 'red' ? '自軍' : '敵軍'})<br>
-        HP: ${unit.hp} / ${type.hp}<br>
-        ATK: ${type.atk} | DEF: ${type.def}<br>
-        地形: ${getTerrain(unit.x, unit.y)}
+        <span class="unit-icon" style="color:${unit.team==='red'?'#ff7675':'#74b9ff'}">🚜</span>
+        <strong>[${gun.name}]</strong><br>
+        HP: <strong style="font-size:1.2rem;color:#2ecc71">${unit.hp}</strong> / 20<br>
+        ATK: ${gun.atk} | DEF: ${gun.def}<br>
+        射程: <strong style="color:#ff7675">${gun.range}</strong> | 移動: ${gun.move}<br>
+        地形: ${getTerrain(unit.x, unit.y) === 'repair' ? '⚙️修理' : '平地'}
     `;
 }
 
-function addLog(msg) {
+function addLog(msg, type) {
     const div = document.createElement('div');
+    if (type === 'red') div.className = 'log-red';
+    if (type === 'blue') div.className = 'log-blue';
+    if (type === 'system') div.className = 'log-system';
     div.innerText = msg;
     logEl.prepend(div);
 }
 
 function endTurn() {
+    if (gameOver) return;
+    
     selectedUnit = null;
-    units.forEach(u => u.acted = false);
-    if (turn === 'red') {
-        turn = 'blue';
-        document.getElementById('turn-display').innerText = "ENEMY TURN";
-        document.getElementById('turn-display').style.color = "#2980b9";
-        setTimeout(aiTurn, 1000);
-    } else {
-        turn = 'red';
-        document.getElementById('turn-display').innerText = "PLAYER TURN";
-        document.getElementById('turn-display').style.color = "#c0392b";
-    }
-    render();
-}
 
-function aiTurn() {
-    const aiUnits = units.filter(u => u.team === 'blue');
-    aiUnits.forEach(u => {
-        const targets = units.filter(t => t.team === 'red');
-        // 最も近い敵を探す
-        targets.sort((a, b) => (Math.abs(u.x - a.x) + Math.abs(u.y - a.y)) - (Math.abs(u.x - b.x) + Math.abs(u.y - b.y)));
-        const target = targets[0];
-
-        if (target) {
-            const dist = Math.abs(u.x - target.x) + Math.abs(u.y - target.y);
-            if (dist <= UNIT_TYPES[u.type].range) {
-                attack(u, target);
-            } else {
-                // 近づく（簡易）
-                if (u.x < target.x && getTerrain(u.x+1, u.y) !== 'mountain') u.x++;
-                else if (u.x > target.x && getTerrain(u.x-1, u.y) !== 'mountain') u.x--;
-                else if (u.y < target.y && getTerrain(u.x, u.y+1) !== 'mountain') u.y++;
+    // --- 修理ステーションでの回復処理 ---
+    units.forEach(u => {
+        if (getTerrain(u.x, u.y) === 'repair') {
+            // 自軍のステーションでのみ回復 (Red:y=9, Blue:y=0)
+            if ((u.team === 'red' && u.y === 9) || (u.team === 'blue' && u.y === 0)) {
+                if (u.hp < 20) {
+                    const healAmount = 8; // 大きく回復
+                    u.hp = Math.min(20, u.hp + healAmount);
+                    addLog(`⚙️${u.team==='red'?'Red':'Blue'}車が修理され、HPが${healAmount}回復した。`, 'system');
+                }
             }
         }
     });
-    endTurn();
+
+    // actedのリセット
+    units.forEach(u => u.acted = false);
+
+    // ターン切り替え
+    if (turn === 'red') {
+        turn = 'blue';
+        document.getElementById('turn-display').innerText = "ENEMY TURN (BLUE)";
+        document.getElementById('turn-display').className = "blue-turn";
+        render();
+        setTimeout(aiTurn, 1000);
+    } else {
+        turn = 'red';
+        document.getElementById('turn-display').innerText = "PLAYER TURN (RED)";
+        document.getElementById('turn-display').className = "red-turn";
+        render();
+    }
+}
+
+// 10台を動かすためのAIロジック
+function aiTurn() {
+    if (gameOver) return;
+    addLog("敵(Blue)が思考中...", 'blue');
+
+    const aiUnits = units.filter(u => u.team === 'blue');
+    const playerUnits = units.filter(u => u.team === 'red');
+
+    aiUnits.forEach((u, index) => {
+        // 少しずつ時間をずらして描画を更新
+        setTimeout(() => {
+            if (!units.includes(u)) return; // 既に撃破されていたらスキップ
+
+            const gunInfo = GUN_TYPES[u.gun];
+            let acted = false;
+
+            // 1. 最優先：主砲射程内にいるプレイヤーを攻撃
+            let targets = playerUnits.map(t => ({
+                unit: t,
+                dist: Math.abs(u.x - t.x) + Math.abs(u.y - t.y)
+            }));
+            // 射程内で、最もHPが低い敵を狙う
+            targets = targets.filter(t => t.dist <= gunInfo.range);
+            targets.sort((a,b) => a.unit.hp - b.unit.hp);
+
+            if (targets.length > 0) {
+                attack(u, targets[0].unit);
+                acted = true;
+            }
+
+            // 2. 移動 (攻撃しなかった、またはHPが低い場合)
+            if (!acted) {
+                // HPが半分以下なら、自軍の修理ステーションへ向かう
+                if (u.hp <= 10) {
+                    // 自軍ステーション (4,0または5,0)
+                    const tx = 4 + (index % 2); // 4と5にばらす
+                    const ty = 0;
+                    
+                    if (u.x === tx && u.y === ty) {
+                        // 既にステーション上なら何もしない（回復待ち）
+                    } else {
+                        // ステーションへ近づく
+                        moveTowards(u, tx, ty);
+                    }
+                } 
+                // それ以外はプレイヤーの中央に向かって進軍
+                else if (playerUnits.length > 0) {
+                    // プレイヤーユニットの平均座標
+                    const avgX = Math.floor(playerUnits.reduce((sum, p) => sum + p.x, 0) / playerUnits.length);
+                    const avgY = Math.floor(playerUnits.reduce((sum, p) => sum + p.y, 0) / playerUnits.length);
+                    // 進軍。ただし弓兵（長距離砲）は少し距離を取る
+                    if (gunInfo.tag === 'LR') {
+                        // 長距離砲は平均Yから少し離れた位置（Y=2,3など）を目指す
+                        moveTowards(u, avgX, 2 + (index % 2));
+                    } else {
+                        moveTowards(u, avgX, avgY);
+                    }
+                }
+            }
+            
+            // 最後のユニットが行動し終わったらターン終了
+            if (index === aiUnits.length - 1) {
+                setTimeout(endTurn, 500);
+            }
+
+        }, index * 150); // 0.15秒刻みで行動
+    });
+}
+
+// 簡易移動AI：目標座標に近づく
+function moveTowards(unit, tx, ty) {
+    const gunInfo = GUN_TYPES[unit.gun];
+    const dx = tx - unit.x;
+    const dy = ty - unit.y;
+    
+    // 移動可能歩数分だけループ
+    for(let step=0; step < gunInfo.move; step++){
+        let nx = unit.x;
+        let ny = unit.y;
+        
+        // Y軸方向を優先（上へ向かう）
+        if (Math.abs(dy) >= Math.abs(dx)) {
+            if (dy > 0 && getTerrain(unit.x, unit.y+1) !== 'mountain') ny++;
+            else if (dy < 0 && getTerrain(unit.x, unit.y-1) !== 'mountain') ny--;
+            else if (dx > 0 && getTerrain(unit.x+1, unit.y) !== 'mountain') nx++;
+            else if (dx < 0 && getTerrain(unit.x-1, unit.y) !== 'mountain') nx--;
+        } else {
+            if (dx > 0 && getTerrain(unit.x+1, unit.y) !== 'mountain') nx++;
+            else if (dx < 0 && getTerrain(unit.x-1, unit.y) !== 'mountain') nx--;
+            else if (dy > 0 && getTerrain(unit.x, unit.y+1) !== 'mountain') ny++;
+            else if (dy < 0 && getTerrain(unit.x, unit.y-1) !== 'mountain') ny--;
+        }
+
+        // 移動先が山、修理ステーション（敵用）、または他のユニットがいる場合は止まる
+        const targetTerrain = getTerrain(nx, ny);
+        if (targetTerrain === 'mountain') break;
+        if (targetTerrain === 'repair' && nx !== unit.x && ny !== unit.y && ((unit.team === 'blue' && ny !== 0) || (unit.team === 'red' && ny !== 9))) break;
+        if (units.some(u => u.x === nx && u.y === ny)) break;
+
+        // 目標に到達したら止まる
+        if (unit.x === tx && unit.y === ty) break;
+
+        unit.x = nx;
+        unit.y = ny;
+    }
+}
+
+function endGame(winner) {
+    gameOver = true;
+    render(); // 最終状態を描画
+    const msg = winner === 'red' ? "🎉 あなたの勝利です！敵車を全滅させました。" : "败北... 敵軍（Blue）の勝利です。";
+    document.getElementById('turn-display').innerText = winner === 'red' ? "PLAYER WIN!" : "ENEMY WIN...";
+    addLog(msg, 'system');
+    alert(msg);
 }
 
 init();
